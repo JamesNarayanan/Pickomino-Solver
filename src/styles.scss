@@ -451,7 +451,7 @@ body {
 	margin-top: 16px;
 	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 	border-radius: 8px;
-	padding: 26px;
+	padding: 16px;
 	color: white;
 	box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
 
@@ -485,7 +485,6 @@ body {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
 	gap: 12px;
-	margin-bottom: 16px;
 }
 
 .choice {
@@ -560,7 +559,8 @@ body {
 .choice-details {
 	display: flex;
 	flex-direction: column;
-	max-width: 60px;
+	min-width: 55px;
+	max-width: 55px;
 	gap: 2px;
 	position: relative;
 	z-index: 1;

@@ -228,7 +228,7 @@ export default function App() {
 											}`}
 											onClick={() => acceptPick(Number(face))}
 										>
-											<div className="choice-face">{face}</div>
+											<div className="choice-face">{face === "6" ? "🐛" : face}</div>
 											{choice && (
 												<div className="choice-details">
 													<div className="choice-metric">
