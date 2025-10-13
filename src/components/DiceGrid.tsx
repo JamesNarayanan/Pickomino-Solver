@@ -1,4 +1,11 @@
 import React, { useEffect, useRef } from "react";
+
+interface DiceGridProps {
+	faces: number[];
+	onToggle: (idx: number) => void;
+	onTypeChange: (idx: number, v: number | null) => void;
+}
+
 export default function DiceGrid({ faces, onToggle, onTypeChange }: DiceGridProps) {
 	const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
@@ -22,10 +29,13 @@ export default function DiceGrid({ faces, onToggle, onTypeChange }: DiceGridProp
 				{faces.map((f, i) => (
 					<input
 						key={i}
-						ref={el => (inputsRef.current[i] = el)}
+						ref={el => {
+							inputsRef.current[i] = el;
+						}}
 						className="die-text"
 						maxLength={1}
 						inputMode="numeric"
+						value={f === 0 ? "" : f.toString()}
 						onKeyUp={e => onInputKey(e, i)}
 						onChange={e => {
 							const v = parseInt(e.target.value);

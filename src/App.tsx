@@ -71,8 +71,10 @@ export default function App() {
 		if (cntInRoll === 0) return;
 		if (usedCounts[face]) return;
 		setUsedCounts(prev => ({ ...prev, [face]: (prev[face] || 0) + cntInRoll }));
-		// clear dice that were used (set to 0)
-		setDice(prev => prev.map(d => (d === face ? 0 : d)));
+		// clear ALL dice and reduce the number of dice available for next roll
+		const totalUsedDice = Object.values(usedCounts).reduce((a, b) => a + b, 0) + cntInRoll;
+		const remainingDiceCount = 8 - totalUsedDice;
+		setDice(Array(remainingDiceCount).fill(0));
 	}
 
 	function claimTile(tile: Target) {
