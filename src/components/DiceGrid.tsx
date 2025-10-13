@@ -13,26 +13,25 @@ export default function DiceGrid({ faces, onTypeChange }: DiceGridProps) {
 		inputsRef.current = inputsRef.current.slice(0, faces.length);
 	}, [faces.length]);
 
-	function onInputKey(e: React.KeyboardEvent<HTMLInputElement>, idx: number) {
+	function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>, idx: number) {
 		const val = (e.target as HTMLInputElement).value;
 
-		if (e.key === "Backspace" && val === "") {
-			// If backspace on empty field, go to previous field
-			const prev = inputsRef.current[idx - 1];
-			if (prev) {
-				prev.focus();
-				prev.select(); // Select all text so next keypress replaces it
+		// Handle backspace behavior
+		if (e.key === "Backspace") {
+			if (val === "") {
+				// If backspace on empty field, go to previous field
+				e.preventDefault();
+				const prev = inputsRef.current[idx - 1];
+				if (prev) {
+					prev.focus();
+					prev.select(); // Select all text so next keypress replaces it
+				}
 			}
-		} else if (val.length >= 1 && e.key !== "Backspace" && e.key !== "Delete") {
-			// advance to next field when typing (but not on delete operations)
-			const next = inputsRef.current[idx + 1];
-			if (next) next.focus();
+			// If field has content, let backspace clear it and stay in place
+			// (default behavior will handle the deletion)
 		}
-	}
-
-	function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>, idx: number) {
 		// Handle arrow key navigation
-		if (e.key === "ArrowLeft") {
+		else if (e.key === "ArrowLeft") {
 			const prev = inputsRef.current[idx - 1];
 			if (prev) {
 				e.preventDefault();
@@ -44,6 +43,16 @@ export default function DiceGrid({ faces, onTypeChange }: DiceGridProps) {
 				e.preventDefault();
 				next.focus();
 			}
+		}
+	}
+
+	function onInputKey(e: React.KeyboardEvent<HTMLInputElement>, idx: number) {
+		const val = (e.target as HTMLInputElement).value;
+
+		// Auto-advance to next field when typing a valid number (but not on delete operations)
+		if (val.length >= 1 && e.key !== "Backspace" && e.key !== "Delete") {
+			const next = inputsRef.current[idx + 1];
+			if (next) next.focus();
 		}
 	}
 
