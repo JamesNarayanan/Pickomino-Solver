@@ -21,6 +21,13 @@ body {
 		padding: 12px 20px;
 		background: var(--card);
 		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+
+		h1 {
+			margin: 0;
+			font-size: 24px;
+			font-weight: 800;
+			color: #111827;
+		}
 	}
 
 	main {
@@ -41,7 +48,9 @@ body {
 
 .top-scorebox {
 	background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+	margin: 16px;
 	padding: 16px 20px;
+	border-radius: 12px;
 	color: white;
 	display: flex;
 	justify-content: space-between;
@@ -168,7 +177,6 @@ body {
 	h3,
 	h4 {
 		margin: 0 0 12px 0;
-		color: #374151;
 	}
 
 	h3 {
@@ -180,6 +188,7 @@ body {
 		font-size: 14px;
 		margin-top: 16px;
 		font-weight: 600;
+		color: #374151;
 	}
 }
 
@@ -352,7 +361,6 @@ body {
 		margin: 0 0 16px 8px;
 		font-size: 20px;
 		font-weight: 800;
-		color: #374151;
 	}
 }
 
@@ -386,10 +394,9 @@ body {
 	color: var(--muted);
 }
 
-.dice-area {
-	margin-top: 12px;
+.card {
 	background: var(--card);
-	padding: 20px;
+	padding: 16px;
 	border-radius: 12px;
 	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
 	border: 1px solid rgba(0, 0, 0, 0.05);
@@ -412,9 +419,9 @@ body {
 	width: 52px;
 	height: 52px;
 	text-align: center;
-	border-radius: 12px;
+	border-radius: 10px;
 	border: 2px solid #e5e7eb;
-	font-size: 20px;
+	font-size: 16px;
 	font-weight: 700;
 	background: white;
 	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -437,7 +444,7 @@ body {
 	margin-top: 16px;
 	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 	border-radius: 12px;
-	padding: 20px;
+	padding: 26px;
 	color: white;
 	box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
 
@@ -583,27 +590,53 @@ body {
 	margin: 0;
 }
 
+.center-col {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+
+	h2 {
+		margin: 0;
+		font-size: 24px;
+		font-weight: 800;
+	}
+}
+
 .main-pool {
 	display: flex;
 	gap: 8px;
+	justify-content: center;
 	flex-wrap: wrap;
-	padding: 12px;
-	background: var(--card);
-	border-radius: 8px;
 }
 
 .tile {
-	width: 72px;
-	height: 110px;
 	background: #fff;
 	border-radius: 10px;
-	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: space-between;
-	padding: 8px;
+	padding: 12px 20px;
+	gap: 16px;
 	cursor: pointer;
+	position: relative;
+	transition: all 0.2s ease-in-out;
+
+	&:before {
+		content: "";
+		position: absolute;
+		top: 50%;
+		left: 0;
+		border-top: 1px solid #e6e6e6;
+		width: 100%;
+		transform: translateY(-50%);
+	}
+
+	&:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+	}
 
 	&-value {
 		font-size: 20px;

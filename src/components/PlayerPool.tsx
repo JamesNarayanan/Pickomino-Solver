@@ -30,7 +30,7 @@ export default function PlayerPool({
 			</div>
 			<div className="player-tiles">
 				{tiles.map((t, i) => (
-					<Tile key={t.value + "-" + i} tile={t} onClick={() => onTileClick && onTileClick(i)} small />
+					<Tile key={t.value + "-" + i} tile={t} onClick={() => onTileClick && onTileClick(i)} />
 				))}
 			</div>
 		</div>

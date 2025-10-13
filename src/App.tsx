@@ -160,7 +160,7 @@ export default function App() {
 	return (
 		<div className="app">
 			<header>
-				<h1>Pickomino Helper</h1>
+				<h1>🐛 Pickomino Solver</h1>
 			</header>
 
 			{/* Top scorebox spanning the screen */}
@@ -211,10 +211,10 @@ export default function App() {
 
 			<main>
 				<section className="left-col">
-					<div className="dice-area">
+					<div className="card">
 						<DiceGrid faces={dice} onTypeChange={setDieValue} />
 						<div className="solver-report">
-							<h3>Solver</h3>
+							<h3>Choices</h3>
 							<div className="best-choice-text">Best choice: {solverOut.bestFace ?? "—"}</div>
 							<div className="choices">
 								{Object.entries(solverOut.probs).map(([face, p]) => {
@@ -231,13 +231,13 @@ export default function App() {
 											{choice && (
 												<div className="choice-details">
 													<div className="choice-metric">
-														<span className="choice-label">&#x1F3C6; %:</span>
+														<span className="choice-label">🏆 %:</span>
 														<span className="choice-value">
 															{(choice.successProb * 100).toFixed(0)}%
 														</span>
 													</div>
 													<div className="choice-metric">
-														<span className="choice-label">&#x1f3b2; Rem:</span>
+														<span className="choice-label">🎲 Rem:</span>
 														<span className="choice-value">{choice.remainingDice}</span>
 													</div>
 													<div className="choice-metric">
@@ -254,8 +254,8 @@ export default function App() {
 					</div>
 				</section>
 
-				<section className="center-col">
-					<h2>Main Pool</h2>
+				<section className="center-col card">
+					<h2>Available Tiles</h2>
 					<div className="main-pool">
 						{targets.map(t => (
 							<Tile
@@ -268,7 +268,7 @@ export default function App() {
 				</section>
 
 				<section className="right-col">
-					<div className="player-controls">
+					<div className="player-controls card">
 						<h3>Player Management</h3>
 						<div className="current-player-selector">
 							<label>Current Player:</label>
@@ -335,7 +335,7 @@ export default function App() {
 						</div>
 					</div>
 
-					<div className="players-tiles">
+					<div className="players-tiles card">
 						<h3>Player Tiles</h3>
 						<div className="players-list">
 							{players.map((pl, i) => (
