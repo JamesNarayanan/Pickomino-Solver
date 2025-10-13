@@ -364,10 +364,6 @@ export default function App() {
 					</div>
 				</section>
 			</main>
-
-			<footer>
-				<small>MVP: heuristic solver. This app persists state to localStorage.</small>
-			</footer>
 		</div>
 	);
 }
