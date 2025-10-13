@@ -1,4 +1,11 @@
+// src/solver.ts
 import { Target, UsedCounts } from "./types";
+
+const factorialCache: number[] = [1];
+function fact(n: number): number {
+	for (let i = factorialCache.length; i <= n; i++) factorialCache[i] = factorialCache[i - 1] * i;
+	return factorialCache[n];
+}
 
 export function buildDefaultTargets(): Target[] {
 	const out: Target[] = [];
@@ -12,17 +19,21 @@ export function buildDefaultTargets(): Target[] {
 	return out;
 }
 
-export function computeCurrentScore(usedCounts: UsedCounts) {
+export function faceValue(face: number): number {
+	return face === 6 ? 5 : face;
+}
+
+export function computeCurrentScore(usedCounts: UsedCounts): number {
 	let s = 0;
 	for (const kStr in usedCounts) {
 		const f = Number(kStr);
 		const c = usedCounts[f] || 0;
-		s += (f === 6 ? 5 : f) * c;
+		s += faceValue(f) * c;
 	}
 	return s;
 }
 
-export function findEligibleTiles(score: number, targets: Target[]) {
+export function findEligibleTiles(score: number, targets: Target[]): Target[] {
 	const elig: Target[] = [];
 	for (const t of targets) {
 		if (t.canOvershoot) {
@@ -31,83 +42,194 @@ export function findEligibleTiles(score: number, targets: Target[]) {
 			if (score === t.value) elig.push(t);
 		}
 	}
-	return elig.sort((a, b) => b.value - a.value);
+	// sort by value desc (prefer higher tile)
+	elig.sort((a, b) => b.value - a.value || b.pts - a.pts);
+	return elig;
 }
 
-// A very small heuristic "solver" for the MVP. It receives a single roll (array of faces)
-// and returns a recommended face to pick, a small textual report and approximate probabilities
-// for each possible face pick. The probabilities are *heuristic* estimates based on expected
-// remaining contribution from dice, not an exact exhaustive probability.
-
-export function solve(roll: number[], targets: Target[], usedCounts: UsedCounts) {
-	// faces present in the roll that are legal choices (not already used)
-	const remainingDice = 8 - Object.values(usedCounts).reduce((a, b) => a + b, 0);
-	const present = new Set<number>(roll);
-	const legalFaces: number[] = [];
-	for (const f of Array.from(present)) {
-		if (!usedCounts[f]) legalFaces.push(f);
+/**
+ * Exact solver:
+ * - Given the current roll (array of faces), targets, and usedCounts,
+ *   compute for each legal face in the current roll the exact probability
+ *   of eventually succeeding (claiming or stealing any tile) if you pick
+ *   that face now and thereafter play optimally.
+ *
+ * - The probability computation is exact (combinatorial) for up to 8 dice.
+ *
+ * Returns:
+ *   { bestFace, report, probs }
+ */
+export function solve(rolls: number[], targets: Target[], usedCounts: UsedCounts) {
+	// build roll counter and base masks
+	const rollCounter: Record<number, number> = {};
+	for (let f = 1; f <= 6; f++) rollCounter[f] = 0;
+	for (const r of rolls) {
+		if (r >= 1 && r <= 6) rollCounter[r] = (rollCounter[r] || 0) + 1;
 	}
 
-	// current score if we don't pick anything yet
-	const cur = computeCurrentScore(usedCounts);
-
-	// expected value per remaining die (6 counts as 5)
-	const expPerDie = (1 + 2 + 3 + 4 + 5 + 5) / 6;
-	const expectedAdd = expPerDie * (remainingDice - 0); // pick doesn't change remaining dice for expectation
-
-	// helper: estimate probability to reach tile value using normal approximation (very rough)
-	function estimateProbToReach(targetValue: number, baseScore: number, remainingDiceEstimate: number) {
-		const need = Math.max(0, targetValue - baseScore);
-		if (need === 0) return 1;
-		const expected = expPerDie * remainingDiceEstimate;
-		// crude: if expected >= need, give moderate-to-good chance; otherwise low
-		if (expected >= need) return Math.min(0.95, 0.5 + 0.5 * (expected / (need + 1)));
-		return Math.max(0.01, (expected / (need + 1)) * 0.3);
+	// convert usedCounts to used mask (bits 1..6 mapped to bits 0..5)
+	let baseUsedMask = 0;
+	for (let f = 1; f <= 6; f++) {
+		if ((usedCounts as any)[f] && (usedCounts as any)[f] > 0) baseUsedMask |= 1 << (f - 1);
 	}
 
-	const probs: Record<number, number> = {};
-	let bestFace: number | null = null;
-	let bestScore = -Infinity;
-	const reportLines: string[] = [];
+	const currentScore = computeCurrentScore(usedCounts);
+	const nDiceNow = 8 - Object.values(usedCounts).reduce((a, b) => a + (b || 0), 0);
 
-	for (const face of legalFaces) {
-		const countInRoll = roll.filter(r => r === face).length;
-		const added = (face === 6 ? 5 : face) * countInRoll;
-		const newScore = cur + added;
-		// remaining dice estimate after picking these copies
-		const remEstimate = remainingDice - countInRoll;
-		// compute probability to be able to claim *something* (any eligible tile)
-		let probAny = 0;
-		const eligNow = findEligibleTiles(newScore, targets);
-		if (eligNow.length > 0 && (usedCounts[6] || (face === 6 && countInRoll > 0))) {
-			// already claimable now and we have at least one worm set aside
-			probAny = 1;
-		} else {
-			// otherwise, estimate probability of eventually reaching each target
-			let bestP = 0;
-			for (const t of targets) {
-				if (!t.canOvershoot) {
-					// for steal-only need exact hit; crude: estimate that remaining dice will produce exact equality (low)
-					const p = estimateProbToReach(t.value, newScore, remEstimate) * 0.5;
-					if (p > bestP) bestP = p;
-				} else {
-					const p = estimateProbToReach(t.value, newScore, remEstimate);
-					if (p > bestP) bestP = p;
+	// helper to test success condition given a score and used mask
+	function isSuccess(score: number, usedMask: number): boolean {
+		// require at least one worm used (face 6)
+		const hasWorm = (usedMask & (1 << (6 - 1))) !== 0;
+		if (!hasWorm) return false;
+		const elig = findEligibleTiles(score, targets);
+		return elig.length > 0;
+	}
+
+	// enumerate multinomial count vectors for n dice across 6 faces
+	function* genCountVectors(n: number, faces = 6): Generator<number[]> {
+		// recursive composition generator
+		const out: number[] = Array(faces).fill(0);
+		function helper(pos: number, remaining: number) {
+			if (pos === faces - 1) {
+				out[pos] = remaining;
+				const copy = out.slice();
+				yieldVectors.push(copy);
+				return;
+			}
+			for (let k = 0; k <= remaining; k++) {
+				out[pos] = k;
+				helper(pos + 1, remaining - k);
+			}
+		}
+		// Because TypeScript generators don't allow nested yield easily in this style,
+		// implement by capturing results into an array and then iterating.
+		const yieldVectors: number[][] = [];
+		(function runHelper() {
+			function inner(pos: number, remaining: number) {
+				if (pos === faces - 1) {
+					out[pos] = remaining;
+					yieldVectors.push(out.slice());
+					return;
+				}
+				for (let k = 0; k <= remaining; k++) {
+					out[pos] = k;
+					inner(pos + 1, remaining - k);
 				}
 			}
-			probAny = bestP;
+			inner(0, n);
+		})();
+		for (const v of yieldVectors) yield v;
+	}
+
+	// memoization map for probSuccess: key => probability
+	const probMemo = new Map<string, number>();
+
+	function probSuccess(remainingDice: number, score: number, usedMask: number): number {
+		const key = `${remainingDice}|${score}|${usedMask}`;
+		if (probMemo.has(key)) return probMemo.get(key)!;
+
+		// if already success, probability is 1
+		if (isSuccess(score, usedMask)) {
+			probMemo.set(key, 1.0);
+			return 1.0;
 		}
 
-		probs[face] = probAny;
-
-		// heuristic score: prefer high immediate newScore, and high probAny
-		const heuristic = newScore + probAny * 10;
-		if (heuristic > bestScore) {
-			bestScore = heuristic;
-			bestFace = face;
+		// no dice left and not successful -> 0
+		if (remainingDice === 0) {
+			probMemo.set(key, 0.0);
+			return 0.0;
 		}
 
-		reportLines.push(`Pick ${face}: immediateScore=${newScore} estProbAny=${(probAny * 100).toFixed(1)}%`);
+		const n = remainingDice;
+		const totalOutcomes = Math.pow(6, n);
+		let totalProb = 0;
+
+		// iterate all count vectors (counts[0] = face 1 count, ... counts[5] = face 6 count)
+		for (const counts of genCountVectors(n, 6)) {
+			// compute multinomial coefficient * (1/6)^n
+			let ways = fact(n);
+			for (let f = 0; f < 6; f++) {
+				ways /= fact(counts[f]);
+			}
+			const pRoll = ways / totalOutcomes;
+
+			// for this roll, determine legal picks (faces present and not already used)
+			let bestPickProbForThisRoll = 0;
+			let anyLegal = false;
+			for (let face = 1; face <= 6; face++) {
+				const cnt = counts[face - 1];
+				if (cnt === 0) continue;
+				const bit = 1 << (face - 1);
+				if ((usedMask & bit) !== 0) continue; // already used this face earlier this turn
+				anyLegal = true;
+
+				const add = faceValue(face) * cnt;
+				const newScore = score + add;
+				const newUsedMask = usedMask | bit;
+				const newRemaining = n - cnt;
+
+				let outcomeProb = 0;
+				if (isSuccess(newScore, newUsedMask)) {
+					outcomeProb = 1.0;
+				} else {
+					if (newRemaining === 0) outcomeProb = 0.0;
+					else outcomeProb = probSuccess(newRemaining, newScore, newUsedMask);
+				}
+
+				if (outcomeProb > bestPickProbForThisRoll) bestPickProbForThisRoll = outcomeProb;
+			}
+
+			// If no legal picks at all in this roll, the player busts for this roll -> contributes 0
+			if (!anyLegal) {
+				// contributes zero; skip
+			} else {
+				totalProb += pRoll * bestPickProbForThisRoll;
+			}
+		}
+
+		probMemo.set(key, totalProb);
+		return totalProb;
+	}
+
+	// Build per-face probabilities for the current visible roll: if we pick face f now,
+	// compute the probability of eventual success (taking into account remaining dice and optimal play).
+	const probs: Record<number, number> = {};
+	let bestFace: number | null = null;
+	let bestProb = -1;
+
+	const reportLines: string[] = [];
+	for (let f = 1; f <= 6; f++) {
+		const count = rollCounter[f] || 0;
+		if (count === 0) continue;
+		const bit = 1 << (f - 1);
+		if ((baseUsedMask & bit) !== 0) {
+			// illegal to pick a face already used this turn
+			continue;
+		}
+
+		const add = faceValue(f) * count;
+		const newScore = currentScore + add;
+		const newUsedMask = baseUsedMask | bit;
+		const newRemaining = nDiceNow - count;
+
+		let prob = 0;
+		if (isSuccess(newScore, newUsedMask)) {
+			prob = 1.0;
+		} else {
+			if (newRemaining === 0) prob = 0.0;
+			else prob = probSuccess(newRemaining, newScore, newUsedMask);
+		}
+
+		probs[f] = prob;
+		reportLines.push(
+			`Pick ${f}: count=${count} -> immediateScore=${newScore}, remainingDice=${newRemaining}, successProb=${(
+				prob * 100
+			).toFixed(2)}%`
+		);
+		if (prob > bestProb) {
+			bestProb = prob;
+			bestFace = f;
+		}
 	}
 
 	const report = reportLines.join("\n");
