@@ -2,7 +2,7 @@
 	"name": "worm-game",
 	"version": "1.0.0",
 	"main": "index.js",
-	"homepage": "https://jamesnarayanan.github.io/pickomino-solver",
+	"homepage": "https://jamesnarayanan.github.io/Pickomino-Solver",
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
