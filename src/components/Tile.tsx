@@ -5,7 +5,11 @@ export default function Tile({ tile, onClick }: { tile: Target; onClick?: () => 
 	return (
 		<div className="tile" onClick={onClick}>
 			<div className="tile-value">{tile.value}</div>
-			<div className="tile-pts">{tile.pts} 🐛</div>
+			<div className="tile-pts">
+				{Array.from({ length: tile.pts }, (_, i) => (
+					<span key={i}>🐛</span>
+				))}
+			</div>
 		</div>
 	);
 }

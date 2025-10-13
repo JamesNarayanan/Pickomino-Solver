@@ -212,6 +212,7 @@ export default function App() {
 			<main>
 				<section className="left-col">
 					<div className="card">
+						<h2>Dice Pool</h2>
 						<DiceGrid faces={dice} onTypeChange={setDieValue} />
 						<div className="solver-report">
 							<h3>Choices</h3>
