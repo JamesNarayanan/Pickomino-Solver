@@ -18,6 +18,7 @@ export default function App() {
 	]);
 	const [currentPlayerIdx, setCurrentPlayerIdx] = useState(0);
 	const [usedCounts, setUsedCounts] = useState<Record<number, number>>({});
+	const [isPlayerManagementOpen, setIsPlayerManagementOpen] = useState(false);
 
 	// dice faces as numbers: 0 = empty/unset, otherwise 1..6; there are 8 dice in total
 	const [dice, setDice] = useState<number[]>(() => Array(8).fill(0));
@@ -145,56 +146,71 @@ export default function App() {
 		if (currentPlayerIdx >= players.length - 1) setCurrentPlayerIdx(0);
 	}
 
+	// Helper to get used dice display
+	const usedDiceDisplay = useMemo(() => {
+		const used = [];
+		for (const [face, count] of Object.entries(usedCounts)) {
+			for (let i = 0; i < count; i++) {
+				used.push(Number(face));
+			}
+		}
+		return used.sort((a, b) => a - b);
+	}, [usedCounts]);
+
 	return (
 		<div className="app">
 			<header>
-				<h1>Pickomino Helper (MVP)</h1>
+				<h1>Pickomino Helper</h1>
 			</header>
-			<main>
-				<section className="left-col">
-					<div className="controls">
-						<label>
-							Players:
-							<div className="players-row">
-								{players.map((pl, i) => (
-									<div key={i} className={`player-pill ${i === currentPlayerIdx ? "active" : ""}`}>
-										<input
-											value={pl.name}
-											onChange={e =>
-												setPlayers(prev => {
-													const cp = [...prev];
-													cp[i] = { ...cp[i], name: e.target.value };
-													return cp;
-												})
-											}
-										/>
-										<button onClick={() => setCurrentPlayerIdx(i)}>Set</button>
-										<button onClick={() => removePlayer(i)}>x</button>
-									</div>
-								))}
-								{players.length < 8 && <button onClick={addPlayer}>+ Add</button>}
-							</div>
-						</label>
 
-						<div className="turn-buttons">
-							<button
-								onClick={() => {
-									setUsedCounts({});
-									setDice(Array(8).fill(0));
-								}}
-							>
-								New Turn
-							</button>
-							<button onClick={onBust}>Bust</button>
-						</div>
-
-						<div className="scorebox">
-							<div>Current Player: {players[currentPlayerIdx].name}</div>
-							<div>Score: {curScore}</div>
-							<div>Remaining dice (expected): {remainingDice}</div>
+			{/* Top scorebox spanning the screen */}
+			<div className="top-scorebox">
+				<div className="score-metrics">
+					<div className="metric">
+						<span className="metric-label">Current Player</span>
+						<span className="metric-value">{players[currentPlayerIdx]?.name || "—"}</span>
+					</div>
+					<div className="metric">
+						<span className="metric-label">Score</span>
+						<span className="metric-value">{curScore}</span>
+					</div>
+					<div className="metric">
+						<span className="metric-label">Remaining Dice</span>
+						<span className="metric-value">{remainingDice}</span>
+					</div>
+					<div className="metric used-dice-metric">
+						<span className="metric-label">Used Dice</span>
+						<div className="used-dice">
+							{usedDiceDisplay.length > 0 ? (
+								usedDiceDisplay.map((face, i) => (
+									<span key={i} className="used-die">
+										{face === 6 ? "🐛" : face}
+									</span>
+								))
+							) : (
+								<span className="no-dice">None</span>
+							)}
 						</div>
 					</div>
+				</div>
+				<div className="main-actions">
+					<button
+						className="action-btn new-turn"
+						onClick={() => {
+							setUsedCounts({});
+							setDice(Array(8).fill(0));
+						}}
+					>
+						New Turn
+					</button>
+					<button className="action-btn bust" onClick={onBust}>
+						Bust
+					</button>
+				</div>
+			</div>
 
+			<main>
+				<section className="left-col">
 					<div className="dice-area">
 						<DiceGrid faces={dice} onTypeChange={setDieValue} />
 						<div className="solver-report">
@@ -252,29 +268,98 @@ export default function App() {
 				</section>
 
 				<section className="right-col">
-					<h2>Players</h2>
-					<div className="players-list">
-						{players.map((pl, i) => (
-							<div key={i} className="player-card">
-								<PlayerPool
-									name={pl.name}
-									tiles={pl.tiles}
-									editableName
-									onNameChange={s =>
-										setPlayers(prev => {
-											const cp = [...prev];
-											cp[i] = { ...cp[i], name: s };
-											return cp;
-										})
-									}
-									onTileClick={tileIdx => {
-										if (i === currentPlayerIdx) return; // do not allow quick remove for self here
-										// move tile from player i back to main pool
-										returnTileFromPlayer(i, tileIdx);
-									}}
-								/>
+					<div className="player-controls">
+						<h3>Player Management</h3>
+						<div className="current-player-selector">
+							<label>Current Player:</label>
+							<select
+								value={currentPlayerIdx}
+								onChange={e => setCurrentPlayerIdx(Number(e.target.value))}
+								className="player-select"
+							>
+								{players.map((pl, i) => (
+									<option key={i} value={i}>
+										{pl.name}
+									</option>
+								))}
+							</select>
+						</div>
+
+						<div className="players-management">
+							<div
+								className="players-management-header"
+								onClick={() => setIsPlayerManagementOpen(!isPlayerManagementOpen)}
+							>
+								<h4>All Players</h4>
+								<span className={`chevron ${isPlayerManagementOpen ? "open" : ""}`}>▶</span>
 							</div>
-						))}
+							{isPlayerManagementOpen && (
+								<div className="players-list-control">
+									{players.map((pl, i) => (
+										<div
+											key={i}
+											className={`player-control-item ${i === currentPlayerIdx ? "active" : ""}`}
+										>
+											<input
+												value={pl.name}
+												onChange={e =>
+													setPlayers(prev => {
+														const cp = [...prev];
+														cp[i] = { ...cp[i], name: e.target.value };
+														return cp;
+													})
+												}
+												className="player-name-input"
+											/>
+											<button
+												onClick={() => setCurrentPlayerIdx(i)}
+												className="set-current-btn"
+												disabled={i === currentPlayerIdx}
+											>
+												{i === currentPlayerIdx ? "Current" : "Set"}
+											</button>
+											{players.length > 1 && (
+												<button onClick={() => removePlayer(i)} className="remove-player-btn">
+													×
+												</button>
+											)}
+										</div>
+									))}
+									{players.length < 8 && (
+										<button onClick={addPlayer} className="add-player-btn">
+											+ Add Player
+										</button>
+									)}
+								</div>
+							)}
+						</div>
+					</div>
+
+					<div className="players-tiles">
+						<h3>Player Tiles</h3>
+						<div className="players-list">
+							{players.map((pl, i) => (
+								<div key={i} className="player-card">
+									<PlayerPool
+										name={pl.name}
+										tiles={pl.tiles}
+										editableName
+										onNameChange={s =>
+											setPlayers(prev => {
+												const cp = [...prev];
+												cp[i] = { ...cp[i], name: s };
+												return cp;
+											})
+										}
+										onTileClick={tileIdx => {
+											if (i === currentPlayerIdx) return; // do not allow quick remove for self here
+											// move tile from player i back to main pool
+											returnTileFromPlayer(i, tileIdx);
+										}}
+									/>
+								</div>
+							))}
+						</div>
 					</div>
 				</section>
 			</main>

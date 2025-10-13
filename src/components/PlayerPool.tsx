@@ -19,7 +19,11 @@ export default function PlayerPool({
 		<div className="player-pool">
 			<div className="player-header">
 				{editableName ? (
-					<input value={name} onChange={e => onNameChange && onNameChange(e.target.value)} />
+					<input
+						value={name}
+						onChange={e => onNameChange && onNameChange(e.target.value)}
+						className="player-name-header-input"
+					/>
 				) : (
 					<div className="player-name">{name}</div>
 				)}
