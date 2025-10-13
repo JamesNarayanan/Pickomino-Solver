@@ -199,20 +199,41 @@ export default function App() {
 						<DiceGrid faces={dice} onTypeChange={setDieValue} />
 						<div className="solver-report">
 							<h3>Solver</h3>
-							<div className="best">Best choice: {solverOut.bestFace ?? "—"}</div>
+							<div className="best-choice-text">Best choice: {solverOut.bestFace ?? "—"}</div>
 							<div className="choices">
-								{Object.entries(solverOut.probs).map(([face, p]) => (
-									<button
-										key={face}
-										className={`choice ${Number(face) === solverOut.bestFace ? "best" : ""}`}
-										onClick={() => acceptPick(Number(face))}
-									>
-										<div className="choice-face">{face}</div>
-										<div className="choice-prob">{(p * 100).toFixed(0)}%</div>
-									</button>
-								))}
+								{Object.entries(solverOut.probs).map(([face, p]) => {
+									const choice = solverOut.choices?.[Number(face)];
+									return (
+										<button
+											key={face}
+											className={`choice ${
+												Number(face) === solverOut.bestFace ? "choice-best" : ""
+											}`}
+											onClick={() => acceptPick(Number(face))}
+										>
+											<div className="choice-face">{face}</div>
+											{choice && (
+												<div className="choice-details">
+													<div className="choice-metric">
+														<span className="choice-label">&#x1F3C6; %:</span>
+														<span className="choice-value">
+															{(choice.successProb * 100).toFixed(0)}%
+														</span>
+													</div>
+													<div className="choice-metric">
+														<span className="choice-label">&#x1f3b2; Rem:</span>
+														<span className="choice-value">{choice.remainingDice}</span>
+													</div>
+													<div className="choice-metric">
+														<span className="choice-label">Score:</span>
+														<span className="choice-value">{choice.immediateScore}</span>
+													</div>
+												</div>
+											)}
+										</button>
+									);
+								})}
 							</div>
-							<pre className="solver-text">{solverOut.report}</pre>
 						</div>
 					</div>
 				</section>

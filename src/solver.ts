@@ -194,6 +194,10 @@ export function solve(rolls: number[], targets: Target[], usedCounts: UsedCounts
 	// Build per-face probabilities for the current visible roll: if we pick face f now,
 	// compute the probability of eventual success (taking into account remaining dice and optimal play).
 	const probs: Record<number, number> = {};
+	const choices: Record<
+		number,
+		{ count: number; immediateScore: number; remainingDice: number; successProb: number }
+	> = {};
 	let bestFace: number | null = null;
 	let bestProb = -1;
 
@@ -221,6 +225,12 @@ export function solve(rolls: number[], targets: Target[], usedCounts: UsedCounts
 		}
 
 		probs[f] = prob;
+		choices[f] = {
+			count,
+			immediateScore: newScore,
+			remainingDice: newRemaining,
+			successProb: prob
+		};
 		reportLines.push(
 			`Pick ${f}: count=${count} -> immediateScore=${newScore}, remainingDice=${newRemaining}, successProb=${(
 				prob * 100
@@ -233,5 +243,5 @@ export function solve(rolls: number[], targets: Target[], usedCounts: UsedCounts
 	}
 
 	const report = reportLines.join("\n");
-	return { bestFace, report, probs };
+	return { bestFace, report, probs, choices };
 }
