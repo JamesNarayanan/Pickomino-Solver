@@ -78,31 +78,16 @@ body {
 .dice-inputs {
 	display: flex;
 	gap: 6px;
+	flex-wrap: wrap;
 }
-.die-text {
-	width: 34px;
-	height: 34px;
-	text-align: center;
-	border-radius: 6px;
-	border: 1px solid #e5e7eb;
-}
-.dice-row {
-	display: flex;
-	gap: 8px;
-	margin-top: 6px;
-}
-.die {
+.die-input {
 	width: 48px;
 	height: 48px;
+	text-align: center;
 	border-radius: 8px;
-	border: none;
-	font-size: 20px;
-}
-.die.unselected {
-	background: #e5e7eb;
-}
-.die.selected {
-	background: #fde68a;
+	border: 1px solid #e5e7eb;
+	font-size: 18px;
+	font-weight: 600;
 }
 
 .solver-report {
@@ -125,6 +110,7 @@ body {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
+	cursor: pointer;
 }
 .choice.best {
 	transform: scale(1.05);

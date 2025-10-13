@@ -48,15 +48,6 @@ export default function App() {
 	const curScore = computeCurrentScore(usedCounts);
 	const remainingDice = 8 - Object.values(usedCounts).reduce((a, b) => a + b, 0);
 
-	function toggleDie(idx: number) {
-		setDice(prev => {
-			const next = [...prev];
-			if (next[idx] === 0) next[idx] = 1;
-			else next[idx] = 0;
-			return next;
-		});
-	}
-
 	function setDieValue(idx: number, v: number | null) {
 		setDice(prev => {
 			const next = [...prev];
@@ -205,7 +196,7 @@ export default function App() {
 					</div>
 
 					<div className="dice-area">
-						<DiceGrid faces={dice} onToggle={toggleDie} onTypeChange={setDieValue} />
+						<DiceGrid faces={dice} onTypeChange={setDieValue} />
 						<div className="solver-report">
 							<h3>Solver</h3>
 							<div className="best">Best choice: {solverOut.bestFace ?? "—"}</div>
