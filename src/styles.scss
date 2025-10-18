@@ -146,26 +146,6 @@ body {
 	cursor: pointer;
 	transition: all 0.2s ease;
 	font-size: 14px;
-
-	&.new-turn {
-		background: rgba(255, 255, 255, 0.9);
-		color: #4f46e5;
-
-		&:hover {
-			background: white;
-			transform: translateY(-1px);
-		}
-	}
-
-	&.bust {
-		background: rgba(239, 68, 68, 0.9);
-		color: white;
-
-		&:hover {
-			background: #dc2626;
-			transform: translateY(-1px);
-		}
-	}
 }
 
 .player-controls {
@@ -241,7 +221,7 @@ body {
 	transition: background-color 0.2s ease;
 
 	&:hover {
-		// background: #f3f4f6;
+		background: #f3f4f6;
 	}
 
 	h4 {
@@ -698,4 +678,191 @@ body {
 footer {
 	padding: 12px;
 	text-align: center;
+}
+
+/* ===== TILE MANAGEMENT STYLES ===== */
+
+/* Tile flipped state */
+.tile.flipped {
+	opacity: 0.4;
+	filter: grayscale(0.7);
+	position: relative;
+
+	&::after {
+		content: "";
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: rgba(0, 0, 0, 0.2);
+		border-radius: 10px;
+		pointer-events: none;
+		z-index: 1;
+	}
+
+	.tile-value {
+		color: #6b7280;
+		position: relative;
+		z-index: 2;
+	}
+
+	.tile-pts {
+		opacity: 0.5;
+		position: relative;
+		z-index: 2;
+	}
+}
+
+/* Player select in top bar */
+.player-select-top {
+	background: rgba(255, 255, 255, 0.2);
+	border: 1px solid rgba(255, 255, 255, 0.3);
+	border-radius: 6px;
+	padding: 4px 8px;
+	color: white;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s ease;
+
+	&:hover {
+		background: rgba(255, 255, 255, 0.3);
+	}
+
+	&:focus {
+		outline: none;
+		box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+	}
+
+	option {
+		background: #4f46e5;
+		color: white;
+	}
+}
+
+/* Tile action overlay and menu */
+.tile-action-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+
+.tile-action-menu {
+	background: var(--card);
+	border-radius: 12px;
+	padding: 20px;
+	min-width: 300px;
+	max-width: 400px;
+	box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+	h3 {
+		margin: 0 0 16px 0;
+		font-size: 18px;
+		font-weight: 600;
+		color: #111827;
+		text-align: center;
+	}
+}
+
+.tile-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	margin-bottom: 16px;
+}
+
+.action-section {
+	h4 {
+		margin: 0 0 8px 0;
+		font-size: 14px;
+		font-weight: 500;
+		color: var(--muted);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.action-btn {
+	&.player-action {
+		background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+		color: white;
+		transition: all 0.2s ease;
+
+		&:hover:not(:disabled) {
+			background: linear-gradient(135deg, #059669 0%, #047857 100%);
+			transform: translateY(-1px);
+		}
+
+		&:disabled,
+		&.disabled {
+			background: #d1d5db;
+			color: #9ca3af;
+			cursor: not-allowed;
+			opacity: 0.6;
+
+			&:hover {
+				transform: none;
+				background: #d1d5db;
+			}
+		}
+	}
+
+	&.main-action {
+		background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+		color: white;
+		transition: all 0.2s ease;
+
+		&:hover {
+			background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+			transform: translateY(-1px);
+		}
+	}
+
+	&.flip-action {
+		background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+		color: white;
+		transition: all 0.2s ease;
+
+		&:hover {
+			background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+			transform: translateY(-1px);
+		}
+	}
+
+	&.cancel-action {
+		background: #f3f4f6;
+		color: #374151;
+		border: 1px solid #d1d5db;
+		transition: all 0.2s ease;
+		margin: 0 auto;
+		display: block;
+
+		&:hover {
+			background: #e5e7eb;
+			transform: translateY(-1px);
+		}
+	}
+
+	&.finish-turn {
+		background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+		color: white;
+		transition: all 0.2s ease;
+
+		&:hover {
+			background: linear-gradient(135deg, #059669 0%, #047857 100%);
+			transform: translateY(-1px);
+		}
+	}
 }

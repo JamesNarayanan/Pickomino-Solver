@@ -19,6 +19,12 @@ export default function App() {
 	const [currentPlayerIdx, setCurrentPlayerIdx] = useState(0);
 	const [usedCounts, setUsedCounts] = useState<Record<number, number>>({});
 	const [isPlayerManagementOpen, setIsPlayerManagementOpen] = useState(false);
+	const [tileActionMenu, setTileActionMenu] = useState<{
+		tile: Target;
+		location: "main" | "player";
+		playerIdx?: number;
+		tileIdx?: number;
+	} | null>(null);
 
 	// dice faces as numbers: 0 = empty/unset, otherwise 1..6; there are 8 dice in total
 	const [dice, setDice] = useState<number[]>(() => Array(8).fill(0));
@@ -69,72 +75,71 @@ export default function App() {
 		setDice(Array(remainingDiceCount).fill(0));
 	}
 
-	function claimTile(tile: Target) {
-		// only allow claim if current score qualifies and worm present
-		if (curScore === 0) return;
-		if ((usedCounts[6] || 0) === 0) return;
-		const elig = findEligibleTiles(curScore, targets);
-		const found = elig.find(t => t.value === tile.value);
-		if (!found) return;
-		// remove from targets and add to current player's pool
-		setTargets(prev => prev.filter(t => t.value !== tile.value));
-		setPlayers(prev => {
-			const p = [...prev];
-			p[currentPlayerIdx] = { ...p[currentPlayerIdx], tiles: [...p[currentPlayerIdx].tiles, tile] };
-			return p;
-		});
-		// reset usedCounts and dice
+	function finishTurn() {
+		// only reset used dice, don't automatically advance player or claim tiles
 		setUsedCounts({});
 		setDice(Array(8).fill(0));
 	}
 
-	function onBust() {
-		// if current player has any tiles, return their most recent to main pool
-		setPlayers(prev => {
-			const p = [...prev];
-			const cur = { ...p[currentPlayerIdx] };
-			if (cur.tiles.length > 0) {
-				const returned = cur.tiles[cur.tiles.length - 1];
-				cur.tiles = cur.tiles.slice(0, -1);
-				// return to main pool and then flip highest main pool tile (remove highest)
-				setTargets(tprev => {
-					const inserted = [...tprev, returned].sort((a, b) => a.value - b.value);
-					// flip (remove) the highest value tile
-					const highest = inserted[inserted.length - 1];
-					inserted.splice(inserted.length - 1, 1);
-					return inserted;
-				});
-			}
-			p[currentPlayerIdx] = cur;
-			return p;
-		});
-		setUsedCounts({});
-		setDice(Array(8).fill(0));
+	function flipTile(tile: Target) {
+		setTargets(prev => prev.map(t => (t.value === tile.value ? { ...t, flipped: !t.flipped } : t)));
 	}
 
-	function giveTileToPlayer(tileValue: number, playerIdx: number) {
-		// find tile in main pool
-		const t = targets.find(x => x.value === tileValue);
-		if (!t) return;
-		setTargets(prev => prev.filter(x => x.value !== tileValue));
+	function moveTileToPlayer(
+		tile: Target,
+		targetPlayerIdx: number,
+		fromLocation: "main" | "player",
+		fromPlayerIdx?: number,
+		fromTileIdx?: number
+	) {
+		// Remove from source
+		if (fromLocation === "main") {
+			setTargets(prev => prev.filter(t => t.value !== tile.value));
+		} else if (fromLocation === "player" && fromPlayerIdx !== undefined && fromTileIdx !== undefined) {
+			setPlayers(prev => {
+				const p = [...prev];
+				p[fromPlayerIdx] = {
+					...p[fromPlayerIdx],
+					tiles: p[fromPlayerIdx].tiles.filter((_, i) => i !== fromTileIdx)
+				};
+				return p;
+			});
+		}
+
+		// Add to target player (reset flipped state when moving to player)
 		setPlayers(prev => {
 			const p = [...prev];
-			p[playerIdx] = { ...p[playerIdx], tiles: [...p[playerIdx].tiles, t] };
+			p[targetPlayerIdx] = {
+				...p[targetPlayerIdx],
+				tiles: [...p[targetPlayerIdx].tiles, { ...tile, flipped: false }]
+			};
 			return p;
 		});
 	}
 
-	function returnTileFromPlayer(playerIdx: number, tileIdx: number) {
+	function moveTileToMain(tile: Target, fromPlayerIdx: number, fromTileIdx: number) {
+		// Remove from player
 		setPlayers(prev => {
 			const p = [...prev];
-			const cur = { ...p[playerIdx] };
-			const returned = cur.tiles[tileIdx];
-			cur.tiles = cur.tiles.filter((_, i) => i !== tileIdx);
-			p[playerIdx] = cur;
-			// return to main pool
-			setTargets(tprev => [...tprev, returned].sort((a, b) => a.value - b.value));
+			p[fromPlayerIdx] = {
+				...p[fromPlayerIdx],
+				tiles: p[fromPlayerIdx].tiles.filter((_, i) => i !== fromTileIdx)
+			};
 			return p;
 		});
+
+		// Add to main pool (preserve flipped state, defaulting to false)
+		setTargets(prev => [...prev, { ...tile, flipped: tile.flipped || false }].sort((a, b) => a.value - b.value));
+	}
+
+	function handleTileClick(tile: Target, location: "main" | "player", playerIdx?: number, tileIdx?: number) {
+		// If tile is face down in main pool, flip it up directly
+		if (location === "main" && tile.flipped) {
+			flipTile(tile);
+			return;
+		}
+
+		setTileActionMenu({ tile, location, playerIdx, tileIdx });
 	}
 
 	function addPlayer() {
@@ -160,7 +165,7 @@ export default function App() {
 	return (
 		<div className="app">
 			<header>
-				<h1>🐛 Pickomino Solver</h1>
+				<h1>🐛 Regenwormen Solver</h1>
 			</header>
 
 			{/* Top scorebox spanning the screen */}
@@ -168,7 +173,17 @@ export default function App() {
 				<div className="score-metrics">
 					<div className="metric">
 						<span className="metric-label">Current Player</span>
-						<span className="metric-value">{players[currentPlayerIdx]?.name || "—"}</span>
+						<select
+							value={currentPlayerIdx}
+							onChange={e => setCurrentPlayerIdx(Number(e.target.value))}
+							className="player-select-top"
+						>
+							{players.map((pl, i) => (
+								<option key={i} value={i}>
+									{pl.name}
+								</option>
+							))}
+						</select>
 					</div>
 					<div className="metric">
 						<span className="metric-label">Score</span>
@@ -194,17 +209,8 @@ export default function App() {
 					</div>
 				</div>
 				<div className="main-actions">
-					<button
-						className="action-btn new-turn"
-						onClick={() => {
-							setUsedCounts({});
-							setDice(Array(8).fill(0));
-						}}
-					>
-						New Turn
-					</button>
-					<button className="action-btn bust" onClick={onBust}>
-						Bust
+					<button className="action-btn finish-turn" onClick={finishTurn}>
+						Finish Turn
 					</button>
 				</div>
 			</div>
@@ -259,11 +265,7 @@ export default function App() {
 					<h2>Available Tiles</h2>
 					<div className="main-pool">
 						{targets.map(t => (
-							<Tile
-								key={t.value}
-								tile={t}
-								onClick={() => giveTileToPlayer(t.value, (currentPlayerIdx + 1) % players.length)}
-							/>
+							<Tile key={t.value} tile={t} onClick={() => handleTileClick(t, "main")} />
 						))}
 					</div>
 				</section>
@@ -353,9 +355,7 @@ export default function App() {
 											})
 										}
 										onTileClick={tileIdx => {
-											if (i === currentPlayerIdx) return; // do not allow quick remove for self here
-											// move tile from player i back to main pool
-											returnTileFromPlayer(i, tileIdx);
+											handleTileClick(pl.tiles[tileIdx], "player", i, tileIdx);
 										}}
 									/>
 								</div>
@@ -364,6 +364,87 @@ export default function App() {
 					</div>
 				</section>
 			</main>
+
+			{/* Tile Action Menu */}
+			{tileActionMenu && (
+				<div className="tile-action-overlay" onClick={() => setTileActionMenu(null)}>
+					<div className="tile-action-menu" onClick={e => e.stopPropagation()}>
+						<h3>Tile {tileActionMenu.tile.value}</h3>
+						<div className="tile-actions">
+							{/* Move to player actions */}
+							<div className="action-section">
+								<h4>Move to Player</h4>
+								{players.map((player, idx) => {
+									const isCurrentOwner =
+										tileActionMenu.location === "player" && tileActionMenu.playerIdx === idx;
+									return (
+										<button
+											key={idx}
+											className={`action-btn player-action ${isCurrentOwner ? "disabled" : ""}`}
+											disabled={isCurrentOwner}
+											onClick={() => {
+												if (isCurrentOwner) return;
+												moveTileToPlayer(
+													tileActionMenu.tile,
+													idx,
+													tileActionMenu.location,
+													tileActionMenu.playerIdx,
+													tileActionMenu.tileIdx
+												);
+												setTileActionMenu(null);
+											}}
+										>
+											{player.name} {isCurrentOwner ? "(Current)" : ""}
+										</button>
+									);
+								})}
+							</div>
+
+							{/* Move to main pool (if not already there) */}
+							{tileActionMenu.location === "player" && (
+								<div className="action-section">
+									<button
+										className="action-btn main-action"
+										onClick={() => {
+											if (
+												tileActionMenu.playerIdx !== undefined &&
+												tileActionMenu.tileIdx !== undefined
+											) {
+												moveTileToMain(
+													tileActionMenu.tile,
+													tileActionMenu.playerIdx,
+													tileActionMenu.tileIdx
+												);
+											}
+											setTileActionMenu(null);
+										}}
+									>
+										Move to Main Pool
+									</button>
+								</div>
+							)}
+
+							{/* Flip tile (if in main pool) */}
+							{tileActionMenu.location === "main" && (
+								<div className="action-section">
+									<button
+										className="action-btn flip-action"
+										onClick={() => {
+											flipTile(tileActionMenu.tile);
+											setTileActionMenu(null);
+										}}
+									>
+										Flip Face Down
+									</button>
+								</div>
+							)}
+						</div>
+						<button className="action-btn cancel-action" onClick={() => setTileActionMenu(null)}>
+							Cancel
+						</button>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }
