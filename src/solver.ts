@@ -1,6 +1,38 @@
 // src/solver.ts
 import { Target, UsedCounts } from "./types";
 
+export enum SolverMode {
+	ANY_TILE = "any_tile",
+	HIGHEST_SCORE = "highest_score"
+}
+
+export interface SolverResult {
+	bestFace: number | null;
+	report: string;
+	probs: Record<number, number>;
+	choices: Record<
+		number,
+		{
+			count: number;
+			immediateScore: number;
+			remainingDice: number;
+			successProb: number;
+			expectedValue?: number; // for highest score mode
+		}
+	>;
+	mode: SolverMode;
+}
+
+export interface MultiModeSolverResult {
+	anyTile: SolverResult;
+	highestScore: SolverResult;
+	bestTiles: {
+		anyTile: number[];
+		highestScore: number[];
+		combined: number[];
+	};
+}
+
 const factorialCache: number[] = [1];
 function fact(n: number): number {
 	for (let i = factorialCache.length; i <= n; i++) factorialCache[i] = factorialCache[i - 1] * i;
@@ -59,7 +91,12 @@ export function findEligibleTiles(score: number, targets: Target[]): Target[] {
  * Returns:
  *   { bestFace, report, probs }
  */
-export function solve(rolls: number[], targets: Target[], usedCounts: UsedCounts) {
+export function solve(
+	rolls: number[],
+	targets: Target[],
+	usedCounts: UsedCounts,
+	mode: SolverMode = SolverMode.ANY_TILE
+): SolverResult {
 	// build roll counter and base masks
 	const rollCounter: Record<number, number> = {};
 	for (let f = 1; f <= 6; f++) rollCounter[f] = 0;
@@ -83,6 +120,16 @@ export function solve(rolls: number[], targets: Target[], usedCounts: UsedCounts
 		if (!hasWorm) return false;
 		const elig = findEligibleTiles(score, targets);
 		return elig.length > 0;
+	}
+
+	// helper to get expected value of best available tile for highest score mode
+	function getBestTileValue(score: number, usedMask: number): number {
+		const hasWorm = (usedMask & (1 << (6 - 1))) !== 0;
+		if (!hasWorm) return 0;
+		const elig = findEligibleTiles(score, targets);
+		if (elig.length === 0) return 0;
+		// Return the points of the highest value tile available
+		return elig[0].pts;
 	}
 
 	// enumerate multinomial count vectors for n dice across 6 faces
@@ -121,17 +168,18 @@ export function solve(rolls: number[], targets: Target[], usedCounts: UsedCounts
 		for (const v of yieldVectors) yield v;
 	}
 
-	// memoization map for probSuccess: key => probability
+	// memoization map for probSuccess: key => probability or expected value
 	const probMemo = new Map<string, number>();
 
 	function probSuccess(remainingDice: number, score: number, usedMask: number): number {
-		const key = `${remainingDice}|${score}|${usedMask}`;
+		const key = `${remainingDice}|${score}|${usedMask}|${mode}`;
 		if (probMemo.has(key)) return probMemo.get(key)!;
 
-		// if already success, probability is 1
+		// if already success, probability is 1 for ANY_TILE mode, expected value for HIGHEST_SCORE mode
 		if (isSuccess(score, usedMask)) {
-			probMemo.set(key, 1.0);
-			return 1.0;
+			const result = mode === SolverMode.ANY_TILE ? 1.0 : getBestTileValue(score, usedMask);
+			probMemo.set(key, result);
+			return result;
 		}
 
 		// no dice left and not successful -> 0
@@ -142,7 +190,7 @@ export function solve(rolls: number[], targets: Target[], usedCounts: UsedCounts
 
 		const n = remainingDice;
 		const totalOutcomes = Math.pow(6, n);
-		let totalProb = 0;
+		let totalValue = 0;
 
 		// iterate all count vectors (counts[0] = face 1 count, ... counts[5] = face 6 count)
 		for (const counts of genCountVectors(n, 6)) {
@@ -154,7 +202,7 @@ export function solve(rolls: number[], targets: Target[], usedCounts: UsedCounts
 			const pRoll = ways / totalOutcomes;
 
 			// for this roll, determine legal picks (faces present and not already used)
-			let bestPickProbForThisRoll = 0;
+			let bestPickValueForThisRoll = 0;
 			let anyLegal = false;
 			for (let face = 1; face <= 6; face++) {
 				const cnt = counts[face - 1];
@@ -168,27 +216,33 @@ export function solve(rolls: number[], targets: Target[], usedCounts: UsedCounts
 				const newUsedMask = usedMask | bit;
 				const newRemaining = n - cnt;
 
-				let outcomeProb = 0;
+				let outcomeValue = 0;
 				if (isSuccess(newScore, newUsedMask)) {
-					outcomeProb = 1.0;
+					outcomeValue = mode === SolverMode.ANY_TILE ? 1.0 : getBestTileValue(newScore, newUsedMask);
 				} else {
-					if (newRemaining === 0) outcomeProb = 0.0;
-					else outcomeProb = probSuccess(newRemaining, newScore, newUsedMask);
+					if (newRemaining === 0) outcomeValue = 0.0;
+					else outcomeValue = probSuccess(newRemaining, newScore, newUsedMask);
 				}
 
-				if (outcomeProb > bestPickProbForThisRoll) bestPickProbForThisRoll = outcomeProb;
+				if (mode === SolverMode.ANY_TILE) {
+					// For ANY_TILE mode, take the maximum probability
+					if (outcomeValue > bestPickValueForThisRoll) bestPickValueForThisRoll = outcomeValue;
+				} else {
+					// For HIGHEST_SCORE mode, take the maximum expected value
+					if (outcomeValue > bestPickValueForThisRoll) bestPickValueForThisRoll = outcomeValue;
+				}
 			}
 
 			// If no legal picks at all in this roll, the player busts for this roll -> contributes 0
 			if (!anyLegal) {
 				// contributes zero; skip
 			} else {
-				totalProb += pRoll * bestPickProbForThisRoll;
+				totalValue += pRoll * bestPickValueForThisRoll;
 			}
 		}
 
-		probMemo.set(key, totalProb);
-		return totalProb;
+		probMemo.set(key, totalValue);
+		return totalValue;
 	}
 
 	// Build per-face probabilities for the current visible roll: if we pick face f now,
@@ -196,10 +250,10 @@ export function solve(rolls: number[], targets: Target[], usedCounts: UsedCounts
 	const probs: Record<number, number> = {};
 	const choices: Record<
 		number,
-		{ count: number; immediateScore: number; remainingDice: number; successProb: number }
+		{ count: number; immediateScore: number; remainingDice: number; successProb: number; expectedValue?: number }
 	> = {};
 	let bestFace: number | null = null;
-	let bestProb = -1;
+	let bestValue = -1;
 
 	const reportLines: string[] = [];
 	for (let f = 1; f <= 6; f++) {
@@ -216,32 +270,85 @@ export function solve(rolls: number[], targets: Target[], usedCounts: UsedCounts
 		const newUsedMask = baseUsedMask | bit;
 		const newRemaining = nDiceNow - count;
 
-		let prob = 0;
+		let value = 0;
 		if (isSuccess(newScore, newUsedMask)) {
-			prob = 1.0;
+			value = mode === SolverMode.ANY_TILE ? 1.0 : getBestTileValue(newScore, newUsedMask);
 		} else {
-			if (newRemaining === 0) prob = 0.0;
-			else prob = probSuccess(newRemaining, newScore, newUsedMask);
+			if (newRemaining === 0) value = 0.0;
+			else value = probSuccess(newRemaining, newScore, newUsedMask);
 		}
 
-		probs[f] = prob;
-		choices[f] = {
+		probs[f] = value;
+		const choiceData = {
 			count,
 			immediateScore: newScore,
 			remainingDice: newRemaining,
-			successProb: prob
+			successProb: mode === SolverMode.ANY_TILE ? value : value > 0 ? 1.0 : 0.0, // For display purposes
+			...(mode === SolverMode.HIGHEST_SCORE && { expectedValue: value })
 		};
+		choices[f] = choiceData;
+
+		const modeLabel = mode === SolverMode.ANY_TILE ? "successProb" : "expectedValue";
+		const displayValue = mode === SolverMode.ANY_TILE ? `${(value * 100).toFixed(2)}%` : value.toFixed(2);
 		reportLines.push(
-			`Pick ${f}: count=${count} -> immediateScore=${newScore}, remainingDice=${newRemaining}, successProb=${(
-				prob * 100
-			).toFixed(2)}%`
+			`Pick ${f}: count=${count} -> immediateScore=${newScore}, remainingDice=${newRemaining}, ${modeLabel}=${displayValue}`
 		);
-		if (prob > bestProb) {
-			bestProb = prob;
+
+		if (value > bestValue) {
+			bestValue = value;
 			bestFace = f;
 		}
 	}
 
 	const report = reportLines.join("\n");
-	return { bestFace, report, probs, choices };
+	return { bestFace, report, probs, choices, mode };
+}
+
+/**
+ * Runs both solver modes and provides combined analysis
+ */
+export function solveMultiMode(rolls: number[], targets: Target[], usedCounts: UsedCounts): MultiModeSolverResult {
+	const anyTile = solve(rolls, targets, usedCounts, SolverMode.ANY_TILE);
+	const highestScore = solve(rolls, targets, usedCounts, SolverMode.HIGHEST_SCORE);
+
+	// Determine best tiles for each mode
+	const anyTileBest: number[] = [];
+	const highestScoreBest: number[] = [];
+	const combined: number[] = [];
+
+	// Find the best face(s) for any tile mode
+	if (anyTile.bestFace !== null) {
+		const bestValue = anyTile.probs[anyTile.bestFace];
+		for (const [face, prob] of Object.entries(anyTile.probs)) {
+			if (Math.abs(prob - bestValue) < 0.001) {
+				// Handle floating point precision
+				anyTileBest.push(Number(face));
+			}
+		}
+	}
+
+	// Find the best face(s) for highest score mode
+	if (highestScore.bestFace !== null) {
+		const bestValue = highestScore.probs[highestScore.bestFace];
+		for (const [face, value] of Object.entries(highestScore.probs)) {
+			if (Math.abs(value - bestValue) < 0.001) {
+				// Handle floating point precision
+				highestScoreBest.push(Number(face));
+			}
+		}
+	}
+
+	// Find faces that are best in either mode
+	const allBest = new Set([...anyTileBest, ...highestScoreBest]);
+	combined.push(...allBest);
+
+	return {
+		anyTile,
+		highestScore,
+		bestTiles: {
+			anyTile: anyTileBest,
+			highestScore: highestScoreBest,
+			combined: combined.sort((a, b) => a - b)
+		}
+	};
 }

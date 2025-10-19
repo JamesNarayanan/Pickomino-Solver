@@ -2,7 +2,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import DiceGrid from "./components/DiceGrid";
 import PlayerPool from "./components/PlayerPool";
 import Tile from "./components/Tile";
-import { buildDefaultTargets, computeCurrentScore, findEligibleTiles, solve } from "./solver";
+import {
+	buildDefaultTargets,
+	computeCurrentScore,
+	findEligibleTiles,
+	solve,
+	solveMultiMode,
+	SolverMode
+} from "./solver";
 import { Target } from "./types";
 
 const STORAGE_KEY = "pickomino_state_v1";
@@ -52,10 +59,23 @@ export default function App() {
 
 	// solver outputs for the current visible roll
 	const roll = useMemo(() => dice.filter(d => d !== 0), [dice]);
-	const solverOut = useMemo(() => solve(roll, targets, usedCounts), [roll, targets, usedCounts]);
+	const solverOut = useMemo(() => solveMultiMode(roll, targets, usedCounts), [roll, targets, usedCounts]);
 
 	const curScore = computeCurrentScore(usedCounts);
 	const remainingDice = 8 - Object.values(usedCounts).reduce((a, b) => a + b, 0);
+
+	// Helper function to generate tooltips for desktop
+	function getChoiceTooltip(isAnyTileBest: boolean, isHighestScoreBest: boolean): string {
+		if (isAnyTileBest && isHighestScoreBest) {
+			return "🟣 Optimal choice for any situation";
+		} else if (isAnyTileBest) {
+			return "🔵 Best to avoid failing - safest play when you're ahead";
+		} else if (isHighestScoreBest) {
+			return "🟢 Best to catch up - aggressive play to maximize wormage";
+		} else {
+			return "Available choice - not optimal for either strategy";
+		}
+	}
 
 	function setDieValue(idx: number, v: number | null) {
 		setDice(prev => {
@@ -243,38 +263,76 @@ export default function App() {
 			<main>
 				<section className="left-col">
 					<div className="card">
-						<h2>Dice Pool</h2>
+						<h2>Roll</h2>
 						<DiceGrid faces={dice} onTypeChange={setDieValue} />
 						<div className="solver-report">
 							<h3>Choices</h3>
-							<div className="best-choice-text">Best choice: {solverOut.bestFace ?? "—"}</div>
+							<div className="solver-modes">
+								<div className="mode-section">
+									<h4>🎯 Any Tile</h4>
+									<div className="best-choice-text">Best: {solverOut.anyTile.bestFace ?? "—"}</div>
+								</div>
+								<div className="mode-section">
+									<h4>🏆 Highest Score</h4>
+									<div className="best-choice-text">
+										Best: {solverOut.highestScore.bestFace ?? "—"}
+									</div>
+								</div>
+							</div>
 							<div className="choices">
-								{Object.entries(solverOut.probs).map(([face, p]) => {
-									const choice = solverOut.choices?.[Number(face)];
+								{Object.entries(solverOut.anyTile.probs).map(([face, p]) => {
+									const anyTileChoice = solverOut.anyTile.choices?.[Number(face)];
+									const highestScoreChoice = solverOut.highestScore.choices?.[Number(face)];
+									const faceNum = Number(face);
+
+									// Determine coloring based on which modes recommend this face
+									const isAnyTileBest = solverOut.bestTiles.anyTile.includes(faceNum);
+									const isHighestScoreBest = solverOut.bestTiles.highestScore.includes(faceNum);
+
+									let choiceClass = "choice";
+									if (isAnyTileBest && isHighestScoreBest) {
+										choiceClass += " choice-both-best";
+									} else if (isAnyTileBest) {
+										choiceClass += " choice-any-tile-best";
+									} else if (isHighestScoreBest) {
+										choiceClass += " choice-highest-score-best";
+									}
+
 									return (
 										<button
 											key={face}
-											className={`choice ${
-												Number(face) === solverOut.bestFace ? "choice-best" : ""
-											}`}
-											onClick={() => acceptPick(Number(face))}
+											className={choiceClass}
+											title={getChoiceTooltip(isAnyTileBest, isHighestScoreBest)}
+											onClick={() => acceptPick(faceNum)}
 										>
 											<div className="choice-face">{face === "6" ? "🐛" : face}</div>
-											{choice && (
+											{anyTileChoice && (
 												<div className="choice-details">
 													<div className="choice-metric">
 														<span className="choice-label">🏆 %:</span>
 														<span className="choice-value">
-															{(choice.successProb * 100).toFixed(0)}%
+															{(anyTileChoice.successProb * 100).toFixed(0)}%
+														</span>
+													</div>
+													{highestScoreChoice?.expectedValue !== undefined && (
+														<div className="choice-metric">
+															<span className="choice-label">Exp 🐛:</span>
+															<span className="choice-value">
+																{highestScoreChoice.expectedValue.toFixed(1)}
+															</span>
+														</div>
+													)}
+													<div className="choice-metric">
+														<span className="choice-label">🎲 Rem:</span>
+														<span className="choice-value">
+															{anyTileChoice.remainingDice}
 														</span>
 													</div>
 													<div className="choice-metric">
-														<span className="choice-label">🎲 Rem:</span>
-														<span className="choice-value">{choice.remainingDice}</span>
-													</div>
-													<div className="choice-metric">
 														<span className="choice-label">Score:</span>
-														<span className="choice-value">{choice.immediateScore}</span>
+														<span className="choice-value">
+															{anyTileChoice.immediateScore}
+														</span>
 													</div>
 												</div>
 											)}
