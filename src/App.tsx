@@ -18,13 +18,15 @@ export default function App() {
 	]);
 	const [currentPlayerIdx, setCurrentPlayerIdx] = useState(0);
 	const [usedCounts, setUsedCounts] = useState<Record<number, number>>({});
-	const [isPlayerManagementOpen, setIsPlayerManagementOpen] = useState(false);
 	const [tileActionMenu, setTileActionMenu] = useState<{
 		tile: Target;
 		location: "main" | "player";
 		playerIdx?: number;
 		tileIdx?: number;
 	} | null>(null);
+	const [removePlayerConfirm, setRemovePlayerConfirm] = useState<{ playerIdx: number; playerName: string } | null>(
+		null
+	);
 
 	// dice faces as numbers: 0 = empty/unset, otherwise 1..6; there are 8 dice in total
 	const [dice, setDice] = useState<number[]>(() => Array(8).fill(0));
@@ -146,9 +148,21 @@ export default function App() {
 		setPlayers(p => [...p, { name: `Player ${p.length + 1}`, tiles: [] }]);
 	}
 
+	function confirmRemovePlayer(idx: number) {
+		setRemovePlayerConfirm({ playerIdx: idx, playerName: players[idx].name });
+	}
+
 	function removePlayer(idx: number) {
+		// Return any tiles from the removed player back to the main pool
+		const removedPlayer = players[idx];
+		if (removedPlayer.tiles.length > 0) {
+			setTargets(prev => [...prev, ...removedPlayer.tiles].sort((a, b) => a.value - b.value));
+		}
+
 		setPlayers(p => p.filter((_, i) => i !== idx));
 		if (currentPlayerIdx >= players.length - 1) setCurrentPlayerIdx(0);
+		else if (currentPlayerIdx > idx) setCurrentPlayerIdx(currentPlayerIdx - 1);
+		setRemovePlayerConfirm(null);
 	}
 
 	// Helper to get used dice display
@@ -282,96 +296,60 @@ export default function App() {
 				</section>
 
 				<section className="right-col">
-					<div className="player-controls card">
-						<h3>Player Management</h3>
-						<div className="current-player-selector">
-							<label>Current Player:</label>
-							<select
-								value={currentPlayerIdx}
-								onChange={e => setCurrentPlayerIdx(Number(e.target.value))}
-								className="player-select"
-							>
-								{players.map((pl, i) => (
-									<option key={i} value={i}>
-										{pl.name}
-									</option>
-								))}
-							</select>
-						</div>
-
-						<div className="players-management">
-							<div
-								className="players-management-header"
-								onClick={() => setIsPlayerManagementOpen(!isPlayerManagementOpen)}
-							>
-								<h4>All Players</h4>
-								<span className={`chevron ${isPlayerManagementOpen ? "open" : ""}`}>▶</span>
-							</div>
-							{isPlayerManagementOpen && (
-								<div className="players-list-control">
-									{players.map((pl, i) => (
-										<div
-											key={i}
-											className={`player-control-item ${i === currentPlayerIdx ? "active" : ""}`}
-										>
-											<input
-												value={pl.name}
-												onChange={e =>
-													setPlayers(prev => {
-														const cp = [...prev];
-														cp[i] = { ...cp[i], name: e.target.value };
-														return cp;
-													})
-												}
-												className="player-name-input"
-											/>
-											<button
-												onClick={() => setCurrentPlayerIdx(i)}
-												className="set-current-btn"
-												disabled={i === currentPlayerIdx}
-											>
-												{i === currentPlayerIdx ? "Current" : "Set"}
-											</button>
-											{players.length > 1 && (
-												<button onClick={() => removePlayer(i)} className="remove-player-btn">
-													×
-												</button>
-											)}
-										</div>
-									))}
-									{players.length < 8 && (
-										<button onClick={addPlayer} className="add-player-btn">
-											+ Add Player
-										</button>
-									)}
-								</div>
-							)}
-						</div>
-					</div>
-
 					<div className="players-tiles card">
-						<h3>Player Tiles</h3>
+						<h3>Players</h3>
 						<div className="players-list">
-							{players.map((pl, i) => (
-								<div key={i} className="player-card">
-									<PlayerPool
-										name={pl.name}
-										tiles={pl.tiles}
-										editableName
-										onNameChange={s =>
-											setPlayers(prev => {
-												const cp = [...prev];
-												cp[i] = { ...cp[i], name: s };
-												return cp;
-											})
-										}
-										onTileClick={tileIdx => {
-											handleTileClick(pl.tiles[tileIdx], "player", i, tileIdx);
-										}}
-									/>
-								</div>
-							))}
+							{players.map((pl, i) => {
+								const playerWorms = pl.tiles.reduce((total, tile) => total + tile.pts, 0);
+								return (
+									<div key={i} className={`player-card ${i > 0 ? "player-card-spaced" : ""}`}>
+										<div className="player-pool">
+											<div className="player-header">
+												<div className="player-name-with-worms">
+													<input
+														value={pl.name}
+														onChange={e =>
+															setPlayers(prev => {
+																const cp = [...prev];
+																cp[i] = { ...cp[i], name: e.target.value };
+																return cp;
+															})
+														}
+														className="player-name-header-input"
+													/>
+													<span className="player-worms">{playerWorms} 🐛</span>
+													{players.length > 1 && (
+														<button
+															onClick={() => confirmRemovePlayer(i)}
+															className="remove-player-btn-inline"
+															title={`Remove ${pl.name}`}
+														>
+															×
+														</button>
+													)}
+												</div>
+											</div>
+											<div className="player-tiles">
+												{pl.tiles.map((t, tileIdx) => (
+													<Tile
+														key={t.value + "-" + tileIdx}
+														tile={t}
+														onClick={() => handleTileClick(t, "player", i, tileIdx)}
+													/>
+												))}
+											</div>
+										</div>
+									</div>
+								);
+							})}
 						</div>
+						{players.length < 8 && (
+							<div className="add-player-container">
+								<button onClick={addPlayer} className="add-player-btn-centered">
+									+ Add Player
+								</button>
+							</div>
+						)}
 					</div>
 				</section>
 			</main>
@@ -453,6 +431,36 @@ export default function App() {
 						<button className="action-btn cancel-action" onClick={() => setTileActionMenu(null)}>
 							Cancel
 						</button>
+					</div>
+				</div>
+			)}
+
+			{/* Remove Player Confirmation Dialog */}
+			{removePlayerConfirm && (
+				<div className="tile-action-overlay" onClick={() => setRemovePlayerConfirm(null)}>
+					<div className="tile-action-menu" onClick={e => e.stopPropagation()}>
+						<h3>Remove Player</h3>
+						<p className="confirmation-text">
+							Are you sure you want to remove <strong>{removePlayerConfirm.playerName}</strong>?
+							{players[removePlayerConfirm.playerIdx]?.tiles.length > 0 && (
+								<span className="warning-text">
+									<br />
+									📤 This player has {players[removePlayerConfirm.playerIdx].tiles.length} tile(s)
+									that will be returned to the main pool.
+								</span>
+							)}
+						</p>
+						<div className="confirmation-actions">
+							<button
+								className="action-btn remove-confirm"
+								onClick={() => removePlayer(removePlayerConfirm.playerIdx)}
+							>
+								Yes, Remove Player
+							</button>
+							<button className="action-btn cancel-action" onClick={() => setRemovePlayerConfirm(null)}>
+								Cancel
+							</button>
+						</div>
 					</div>
 				</div>
 			)}
