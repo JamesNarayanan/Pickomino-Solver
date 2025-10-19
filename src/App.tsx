@@ -162,6 +162,12 @@ export default function App() {
 		return used.sort((a, b) => a - b);
 	}, [usedCounts]);
 
+	// Calculate total worms for current player
+	const currentPlayerWorms = useMemo(() => {
+		if (!players[currentPlayerIdx]) return 0;
+		return players[currentPlayerIdx].tiles.reduce((total, tile) => total + tile.pts, 0);
+	}, [players, currentPlayerIdx]);
+
 	return (
 		<div className="app">
 			<header>
@@ -186,7 +192,12 @@ export default function App() {
 						</select>
 					</div>
 					<div className="metric">
-						<span className="metric-label">Score</span>
+						<span className="metric-label">Worm Total</span>
+						<span className="metric-value">{currentPlayerWorms} 🐛</span>
+					</div>
+					<div className="metric-separator"></div>
+					<div className="metric">
+						<span className="metric-label">Turn Score</span>
 						<span className="metric-value">{curScore}</span>
 					</div>
 					<div className="metric">
